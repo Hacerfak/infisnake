@@ -554,10 +554,58 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) {
           setState(() {
-            _vidas = 1;
-            _jogando = true;
+            _vidas = 1; // Dá a vida extra
+            _jogando = true; // Define o jogo como ativo
+
+            // Lógica de reset aleatório para a cobra
+            final random = Random();
+            final direcoes = Direcao.values;
+            final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
+
+            _direcao = direcaoAleatoria;
+            Point<int> cabeca = const Point(
+              colunas ~/ 2,
+              linhas ~/ 2,
+            ); // Começa no centro
+            switch (_direcao) {
+              case Direcao.direita:
+                _cobra = [
+                  Point(cabeca.x - 2, cabeca.y),
+                  Point(cabeca.x - 1, cabeca.y),
+                  cabeca,
+                ];
+                break;
+              case Direcao.esquerda:
+                _cobra = [
+                  Point(cabeca.x + 2, cabeca.y),
+                  Point(cabeca.x + 1, cabeca.y),
+                  cabeca,
+                ];
+                break;
+              case Direcao.baixo:
+                _cobra = [
+                  Point(cabeca.x, cabeca.y - 2),
+                  Point(cabeca.x, cabeca.y - 1),
+                  cabeca,
+                ];
+                break;
+              case Direcao.cima:
+                _cobra = [
+                  Point(cabeca.x, cabeca.y + 2),
+                  Point(cabeca.x, cabeca.y + 1),
+                  cabeca,
+                ];
+                break;
+            }
           });
-          _timer = Timer.periodic(const Duration(milliseconds: 300), _loopJogo);
+
+          // Reinicia o timer com a velocidade correspondente ao nível atual
+          _timer?.cancel();
+          final novaVelocidade = 300 - (_nivel * 20);
+          _timer = Timer.periodic(
+            Duration(milliseconds: max(50, novaVelocidade)),
+            _loopJogo,
+          );
         },
       );
       _rewardedAd = null;
