@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
-import 'l10n/app_localizations.dart'; // Importações para localização (geradas automaticamente)
+import 'l10n/app_localizations.dart';
 
 // Constantes para configuração do jogo
 const int colunas = 20;
@@ -73,6 +73,7 @@ class _MenuTelaState extends State<MenuTela> {
   int _ultimaPontuacao = 0;
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+  bool _isBannerLoading = false;
 
   String get _bannerAdUnitId => Platform.isAndroid
       ? 'ca-app-pub-4241608895500197/7167523706'
@@ -82,17 +83,43 @@ class _MenuTelaState extends State<MenuTela> {
   void initState() {
     super.initState();
     _carregarPontuacoes();
-    _carregarBannerAd();
   }
 
-  void _carregarBannerAd() {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isBannerLoading && !_isBannerAdLoaded) {
+      _isBannerLoading = true;
+      _carregarBannerAdaptativo();
+    }
+  }
+
+  Future<void> _carregarBannerAdaptativo() async {
+    final AnchoredAdaptiveBannerAdSize? size =
+        await AdSize.getAnchoredAdaptiveBannerAdSize(
+          Orientation.portrait,
+          MediaQuery.of(context).size.width.truncate(),
+        );
+
+    if (size == null) {
+      return;
+    }
+
     _bannerAd = BannerAd(
       adUnitId: _bannerAdUnitId,
       request: const AdRequest(),
-      size: AdSize.banner,
+      size: size,
       listener: BannerAdListener(
-        onAdLoaded: (ad) => setState(() => _isBannerAdLoaded = true),
-        onAdFailedToLoad: (ad, err) => ad.dispose(),
+        onAdLoaded: (ad) => setState(() {
+          _isBannerAdLoaded = true;
+          _isBannerLoading = false;
+        }),
+        onAdFailedToLoad: (ad, err) {
+          ad.dispose();
+          setState(() {
+            _isBannerLoading = false;
+          });
+        },
       ),
     )..load();
   }
@@ -247,6 +274,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   ];
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+  bool _isBannerLoading = false;
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
@@ -254,8 +282,18 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   @override
   void initState() {
     super.initState();
-    _carregarAnuncios();
     _iniciarJogo();
+    _carregarInterstitialAd();
+    _carregarRewardedAd();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isBannerLoading && !_isBannerAdLoaded) {
+      _isBannerLoading = true;
+      _carregarBannerAdaptativo();
+    }
   }
 
   void _iniciarJogo() {
@@ -361,8 +399,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     setState(
       () => _borderColor = _levelColors[(_nivel - 1) % _levelColors.length],
     );
-    if (_cobra.length > 3)
+    if (_cobra.length > 3) {
       setState(() => _cobra = _cobra.sublist(_cobra.length - 3));
+    }
     _timer?.cancel();
     final novaVelocidade = 300 - (_nivel * 20);
     _timer = Timer.periodic(
@@ -374,7 +413,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   void _perderVida() {
     setState(() {
       _vidas--;
-      if (_vidas <= 0) {
+      if (_vidas < 0) {
         _gameOver();
       } else {
         final random = Random();
@@ -442,20 +481,32 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       ? 'ca-app-pub-4241608895500197/6401236943'
       : 'ca-app-pub-4241608895500197/6482441071';
 
-  void _carregarAnuncios() {
-    _carregarBannerAd();
-    _carregarInterstitialAd();
-    _carregarRewardedAd();
-  }
+  Future<void> _carregarBannerAdaptativo() async {
+    final AnchoredAdaptiveBannerAdSize? size =
+        await AdSize.getAnchoredAdaptiveBannerAdSize(
+          Orientation.portrait,
+          MediaQuery.of(context).size.width.truncate(),
+        );
 
-  void _carregarBannerAd() {
+    if (size == null) {
+      return;
+    }
+
     _bannerAd = BannerAd(
       adUnitId: _bannerAdUnitId,
       request: const AdRequest(),
-      size: AdSize.banner,
+      size: size,
       listener: BannerAdListener(
-        onAdLoaded: (ad) => setState(() => _isBannerAdLoaded = true),
-        onAdFailedToLoad: (ad, err) => ad.dispose(),
+        onAdLoaded: (ad) => setState(() {
+          _isBannerAdLoaded = true;
+          _isBannerLoading = false;
+        }),
+        onAdFailedToLoad: (ad, err) {
+          ad.dispose();
+          setState(() {
+            _isBannerLoading = false;
+          });
+        },
       ),
     )..load();
   }
@@ -520,12 +571,14 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       );
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) {
+          // --- LÓGICA DE RESET CORRIGIDA ---
+          final random = Random();
+          final direcoes = Direcao.values;
+          final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
+
           setState(() {
             _vidas = 1;
             _jogando = true;
-            final random = Random();
-            final direcoes = Direcao.values;
-            final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
             _direcao = direcaoAleatoria;
             Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
             switch (_direcao) {
@@ -585,15 +638,15 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       ),
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
-          if (_direcao != Direcao.cima && details.delta.dy > 0)
+          if (_direcao != Direcao.cima && details.delta.dy > 0) {
             _direcao = Direcao.baixo;
-          else if (_direcao != Direcao.baixo && details.delta.dy < 0)
+          } else if (_direcao != Direcao.baixo && details.delta.dy < 0)
             _direcao = Direcao.cima;
         },
         onHorizontalDragUpdate: (details) {
-          if (_direcao != Direcao.esquerda && details.delta.dx > 0)
+          if (_direcao != Direcao.esquerda && details.delta.dx > 0) {
             _direcao = Direcao.direita;
-          else if (_direcao != Direcao.direita && details.delta.dx < 0)
+          } else if (_direcao != Direcao.direita && details.delta.dx < 0)
             _direcao = Direcao.esquerda;
         },
         child: Center(
