@@ -1,0 +1,21 @@
+{
+    "@@locale": "en",
+    "appTitle": "InfiSnake",
+    "gameTitle": "InfiSnake",
+    "startGame": "START GAME",
+    "viewScoreboard": "VIEW SCOREBOARD",
+    "closeGame": "CLOSE GAME",
+    "scoreboard": "Scoreboard",
+    "lastScore": "Last Score: ",
+    "highScore": "High Score: ",
+    "close": "Close",
+    "points": "Points: ",
+    "level": "Level: ",
+    "lives": "Lives: ",
+    "gameOver": "Game Over!",
+    "yourFinalScore": "Your final score was: ",
+    "getExtraLife": "GET +1 LIFE",
+    "exitToMenu": "Exit to Menu",
+    "playAgain": "Play Again",
+    "backToMenu": "Back to Menu"
+}

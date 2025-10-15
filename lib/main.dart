@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import 'l10n/app_localizations.dart'; // Importações para localização (geradas automaticamente)
 
 // Constantes para configuração do jogo
 const int colunas = 20;
@@ -26,8 +27,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
       debugShowCheckedModeBanner: false,
-      title: 'InfiSnake',
+
+      // Configuração da localização simplificada
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: Colors.cyan,
@@ -49,7 +55,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MenuTela(), // A tela inicial agora é o Menu
+      home: const MenuTela(),
     );
   }
 }
@@ -65,12 +71,9 @@ class MenuTela extends StatefulWidget {
 class _MenuTelaState extends State<MenuTela> {
   int _recorde = 0;
   int _ultimaPontuacao = 0;
-
-  // Variáveis para o banner ad
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
 
-  // ID do anúncio (pode ser o mesmo do jogo)
   String get _bannerAdUnitId => Platform.isAndroid
       ? 'ca-app-pub-4241608895500197/7167523706'
       : 'ca-app-pub-4241608895500197/3364010068';
@@ -79,7 +82,7 @@ class _MenuTelaState extends State<MenuTela> {
   void initState() {
     super.initState();
     _carregarPontuacoes();
-    _carregarBannerAd(); // Carregar o anúncio
+    _carregarBannerAd();
   }
 
   void _carregarBannerAd() {
@@ -88,14 +91,8 @@ class _MenuTelaState extends State<MenuTela> {
       request: const AdRequest(),
       size: AdSize.banner,
       listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isBannerAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          ad.dispose();
-        },
+        onAdLoaded: (ad) => setState(() => _isBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
     )..load();
   }
@@ -110,6 +107,8 @@ class _MenuTelaState extends State<MenuTela> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       body: Center(
         child: Padding(
@@ -118,10 +117,10 @@ class _MenuTelaState extends State<MenuTela> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'InfiSnake',
+              Text(
+                localizations.gameTitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 40,
                   fontWeight: FontWeight.bold,
                   color: Colors.cyan,
@@ -130,38 +129,31 @@ class _MenuTelaState extends State<MenuTela> {
               const SizedBox(height: 60),
               ElevatedButton.icon(
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('INICIAR'),
+                label: Text(localizations.startGame),
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const JogoCobrinhaTela(),
                     ),
-                  ).then((_) {
-                    // Recarrega as pontuações quando volta do jogo
-                    _carregarPontuacoes();
-                  });
+                  ).then((_) => _carregarPontuacoes());
                 },
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 icon: const Icon(Icons.leaderboard),
-                label: const Text('PLACAR'),
+                label: Text(localizations.viewScoreboard),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-                onPressed: () {
-                  _mostrarScoreboard(context);
-                },
+                onPressed: () => _mostrarScoreboard(context),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 icon: const Icon(Icons.exit_to_app),
-                label: const Text('SAIR'),
+                label: Text(localizations.closeGame),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                 ),
-                onPressed: () {
-                  exit(0); // Fecha a aplicação
-                },
+                onPressed: () => exit(0),
               ),
             ],
           ),
@@ -178,22 +170,26 @@ class _MenuTelaState extends State<MenuTela> {
   }
 
   void _mostrarScoreboard(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF161B22),
-        title: const Text('Placar', style: TextStyle(color: Colors.cyan)),
+        title: Text(
+          localizations.scoreboard,
+          style: const TextStyle(color: Colors.cyan),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Última Pontuação: $_ultimaPontuacao',
+              '${localizations.lastScore}$_ultimaPontuacao',
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
             const SizedBox(height: 10),
             Text(
-              'Seu Recorde: $_recorde',
+              '${localizations.highScore}$_recorde',
               style: const TextStyle(
                 color: Colors.amber,
                 fontSize: 20,
@@ -204,7 +200,10 @@ class _MenuTelaState extends State<MenuTela> {
         ),
         actions: [
           TextButton(
-            child: const Text('Fechar', style: TextStyle(color: Colors.cyan)),
+            child: Text(
+              localizations.close,
+              style: const TextStyle(color: Colors.cyan),
+            ),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -237,25 +236,15 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   int _nivel = 1;
   int _vidas = 2;
   Timer? _timer;
-
-  // Cor da borda do cenário
-
   Color _borderColor = Colors.cyan.withOpacity(0.7);
-
   final List<Color> _levelColors = [
     Colors.cyan.withOpacity(0.7),
-
     Colors.amber.withOpacity(0.7),
-
     Colors.lightGreen.withOpacity(0.7),
-
     Colors.purpleAccent.withOpacity(0.7),
-
     Colors.orange.withOpacity(0.7),
-
     Colors.pink.withOpacity(0.7),
   ];
-
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
   InterstitialAd? _interstitialAd;
@@ -270,7 +259,6 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   }
 
   void _iniciarJogo() {
-    // Define uma direção inicial aleatória
     final random = Random();
     final direcoes = Direcao.values;
     final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
@@ -280,15 +268,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       _pontosNivel = 0;
       _nivel = 1;
       _vidas = 2;
-      _borderColor = _levelColors[0]; // Reseta a cor da borda
-
-      // Define a posição inicial da cobra baseada na direção aleatória
-      // para evitar colisão imediata.
+      _borderColor = _levelColors[0];
       _direcao = direcaoAleatoria;
-      Point<int> cabeca = const Point(
-        colunas ~/ 2,
-        linhas ~/ 2,
-      ); // Começa no centro
+      Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
       switch (_direcao) {
         case Direcao.direita:
           _cobra = [
@@ -319,11 +301,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           ];
           break;
       }
-
       _gerarComida();
       _jogando = true;
     });
-
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 300), _loopJogo);
   }
@@ -332,7 +312,6 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     if (!_jogando) return;
     final cabeca = _cobra.last;
     Point<int> novaCabeca;
-
     switch (_direcao) {
       case Direcao.cima:
         novaCabeca = Point(cabeca.x, cabeca.y - 1);
@@ -347,7 +326,6 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
         novaCabeca = Point(cabeca.x + 1, cabeca.y);
         break;
     }
-
     if (novaCabeca.x < 0 ||
         novaCabeca.x >= colunas ||
         novaCabeca.y < 0 ||
@@ -356,7 +334,6 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       _perderVida();
       return;
     }
-
     setState(() {
       _cobra.add(novaCabeca);
       if (novaCabeca == _comida) {
@@ -380,17 +357,12 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   void _subirNivel() {
     _nivel++;
     _pontosNivel = 0;
-    _vidas = 2; // Restaura as vidas ao subir de nível
-
-    // Muda a cor da borda ao subir de nível
-    setState(() {
-      _borderColor = _levelColors[(_nivel - 1) % _levelColors.length];
-    });
-
-    // Limita o tamanho da cobra para evitar crescimento excessivo
-    if (_cobra.length > 3) {
+    _vidas = 2;
+    setState(
+      () => _borderColor = _levelColors[(_nivel - 1) % _levelColors.length],
+    );
+    if (_cobra.length > 3)
       setState(() => _cobra = _cobra.sublist(_cobra.length - 3));
-    }
     _timer?.cancel();
     final novaVelocidade = 300 - (_nivel * 20);
     _timer = Timer.periodic(
@@ -405,16 +377,11 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       if (_vidas <= 0) {
         _gameOver();
       } else {
-        // Lógica de reset aleatório
         final random = Random();
         final direcoes = Direcao.values;
         final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
-
         _direcao = direcaoAleatoria;
-        Point<int> cabeca = const Point(
-          colunas ~/ 2,
-          linhas ~/ 2,
-        ); // Começa no centro
+        Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
         switch (_direcao) {
           case Direcao.direita:
             _cobra = [
@@ -554,19 +521,13 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) {
           setState(() {
-            _vidas = 1; // Dá a vida extra
-            _jogando = true; // Define o jogo como ativo
-
-            // Lógica de reset aleatório para a cobra
+            _vidas = 1;
+            _jogando = true;
             final random = Random();
             final direcoes = Direcao.values;
             final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
-
             _direcao = direcaoAleatoria;
-            Point<int> cabeca = const Point(
-              colunas ~/ 2,
-              linhas ~/ 2,
-            ); // Começa no centro
+            Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
             switch (_direcao) {
               case Direcao.direita:
                 _cobra = [
@@ -614,22 +575,25 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pontos: $_pontos | Nível: $_nivel | Vidas: $_vidas'),
+        title: Text(
+          '${localizations.points}$_pontos | ${localizations.level}$_nivel | ${localizations.lives}$_vidas',
+        ),
         centerTitle: true,
       ),
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
-          if (_direcao != Direcao.cima && details.delta.dy > 0) {
+          if (_direcao != Direcao.cima && details.delta.dy > 0)
             _direcao = Direcao.baixo;
-          } else if (_direcao != Direcao.baixo && details.delta.dy < 0)
+          else if (_direcao != Direcao.baixo && details.delta.dy < 0)
             _direcao = Direcao.cima;
         },
         onHorizontalDragUpdate: (details) {
-          if (_direcao != Direcao.esquerda && details.delta.dx > 0) {
+          if (_direcao != Direcao.esquerda && details.delta.dx > 0)
             _direcao = Direcao.direita;
-          } else if (_direcao != Direcao.direita && details.delta.dx < 0)
+          else if (_direcao != Direcao.direita && details.delta.dx < 0)
             _direcao = Direcao.esquerda;
         },
         child: Center(
@@ -637,15 +601,11 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
             width: colunas * tamanhoCelula,
             height: linhas * tamanhoCelula,
             decoration: BoxDecoration(
-              border: Border.all(
-                color: _borderColor,
-                width: 2.0,
-              ), // Usa a cor da borda do estado
+              border: Border.all(color: _borderColor, width: 2.0),
               color: const Color(0xFF161B22),
             ),
             child: Stack(
               children: [
-                // Desenha o corpo e a cabeça da cobra com cores diferentes
                 ..._cobra.map((p) {
                   final bool isHead = p == _cobra.last;
                   return Positioned(
@@ -689,23 +649,27 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   }
 
   void _mostrarDialogoGameOver() {
+    final localizations = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF161B22),
-        title: const Text('Fim de Jogo!', style: TextStyle(color: Colors.cyan)),
+        title: Text(
+          localizations.gameOver,
+          style: const TextStyle(color: Colors.cyan),
+        ),
         content: Text(
-          'Sua pontuação final foi: $_pontos',
+          '${localizations.yourFinalScore}$_pontos',
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
           if (_vidas <= 0 && _rewardedAdReady)
             TextButton.icon(
               icon: const Icon(Icons.videocam, color: Colors.amber),
-              label: const Text(
-                'GANHAR +1 VIDA',
-                style: TextStyle(color: Colors.amber),
+              label: Text(
+                localizations.getExtraLife,
+                style: const TextStyle(color: Colors.amber),
               ),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -713,9 +677,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
               },
             ),
           TextButton(
-            child: const Text(
-              'Ver Placar',
-              style: TextStyle(color: Colors.deepOrangeAccent),
+            child: Text(
+              localizations.viewScoreboard,
+              style: const TextStyle(color: Colors.white),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -723,19 +687,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
             },
           ),
           TextButton(
-            child: const Text(
-              'Reiniciar Jogo',
-              style: TextStyle(color: Colors.cyan),
-            ),
-            onPressed: () {
-              Navigator.of(context).pop();
-              _iniciarJogo();
-            },
-          ),
-          TextButton(
-            child: const Text(
-              'Sair para o Menu',
-              style: TextStyle(color: Colors.redAccent),
+            child: Text(
+              localizations.exitToMenu,
+              style: const TextStyle(color: Colors.cyan),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -748,26 +702,29 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   }
 
   void _mostrarScoreboard() async {
+    final localizations = AppLocalizations.of(context)!;
     final prefs = await SharedPreferences.getInstance();
     final recorde = prefs.getInt('recorde') ?? 0;
-
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF161B22),
-        title: const Text('Placar', style: TextStyle(color: Colors.cyan)),
+        title: Text(
+          localizations.scoreboard,
+          style: const TextStyle(color: Colors.cyan),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Última Pontuação: $_pontos',
+              '${localizations.lastScore}$_pontos',
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
             const SizedBox(height: 10),
             Text(
-              'Seu Recorde: $recorde',
+              '${localizations.highScore}$recorde',
               style: const TextStyle(
                 color: Colors.amber,
                 fontSize: 20,
@@ -778,9 +735,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
         ),
         actions: [
           TextButton(
-            child: const Text(
-              'Voltar ao Menu',
-              style: TextStyle(color: Colors.white),
+            child: Text(
+              localizations.backToMenu,
+              style: const TextStyle(color: Colors.white),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -788,9 +745,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
             },
           ),
           TextButton(
-            child: const Text(
-              'Jogar Novamente',
-              style: TextStyle(color: Colors.cyan),
+            child: Text(
+              localizations.playAgain,
+              style: const TextStyle(color: Colors.cyan),
             ),
             onPressed: () {
               Navigator.of(context).pop();
