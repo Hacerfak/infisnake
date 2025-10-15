@@ -679,7 +679,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           TextButton(
             child: Text(
               localizations.viewScoreboard,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.deepOrangeAccent),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -688,8 +688,18 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           ),
           TextButton(
             child: Text(
-              localizations.exitToMenu,
+              localizations.playAgain,
               style: const TextStyle(color: Colors.cyan),
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _iniciarJogo();
+            },
+          ),
+          TextButton(
+            child: Text(
+              localizations.exitToMenu,
+              style: const TextStyle(color: Colors.redAccent),
             ),
             onPressed: () {
               Navigator.of(context).pop();
