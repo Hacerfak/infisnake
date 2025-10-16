@@ -11,6 +11,7 @@ const int colunas = 20;
 const int linhas = 30;
 const double tamanhoCelula = 20.0;
 const int pontosPorNivel = 10;
+const int nivelInicioObstaculos = 5;
 
 // Enum para representar a direção da cobra
 enum Direcao { cima, baixo, esquerda, direita }
@@ -71,30 +72,39 @@ class MenuTela extends StatefulWidget {
 class _MenuTelaState extends State<MenuTela> {
   int _recorde = 0;
   int _ultimaPontuacao = 0;
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
-  bool _isBannerLoading = false;
+
+  BannerAd? _topBannerAd;
+  bool _isTopBannerAdLoaded = false;
+  BannerAd? _bottomBannerAd;
+  bool _isBottomBannerAdLoaded = false;
+  bool _areBannersLoading = false;
+  InterstitialAd? _interstitialAd;
 
   String get _bannerAdUnitId => Platform.isAndroid
       ? 'ca-app-pub-4241608895500197/7167523706'
       : 'ca-app-pub-4241608895500197/3364010068';
 
+  String get _interstitialAdUnitId => Platform.isAndroid
+      ? 'ca-app-pub-4241608895500197/1148894359'
+      : 'ca-app-pub-4241608895500197/7111683380';
+
   @override
   void initState() {
     super.initState();
     _carregarPontuacoes();
+    _carregarInterstitialAd();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_isBannerLoading && !_isBannerAdLoaded) {
-      _isBannerLoading = true;
-      _carregarBannerAdaptativo();
+    if (!_areBannersLoading) {
+      _areBannersLoading = true;
+      _carregarBannersAdaptativos();
     }
   }
 
-  Future<void> _carregarBannerAdaptativo() async {
+  Future<void> _carregarBannersAdaptativos() async {
     final AnchoredAdaptiveBannerAdSize? size =
         await AdSize.getAnchoredAdaptiveBannerAdSize(
           Orientation.portrait,
@@ -105,23 +115,57 @@ class _MenuTelaState extends State<MenuTela> {
       return;
     }
 
-    _bannerAd = BannerAd(
+    _topBannerAd = BannerAd(
       adUnitId: _bannerAdUnitId,
       request: const AdRequest(),
       size: size,
       listener: BannerAdListener(
-        onAdLoaded: (ad) => setState(() {
-          _isBannerAdLoaded = true;
-          _isBannerLoading = false;
-        }),
-        onAdFailedToLoad: (ad, err) {
-          ad.dispose();
-          setState(() {
-            _isBannerLoading = false;
-          });
-        },
+        onAdLoaded: (ad) => setState(() => _isTopBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
     )..load();
+
+    _bottomBannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      request: const AdRequest(),
+      size: size,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) => setState(() => _isBottomBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
+      ),
+    )..load();
+  }
+
+  void _carregarInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: _interstitialAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _interstitialAd = ad,
+        onAdFailedToLoad: (error) => _interstitialAd = null,
+      ),
+    );
+  }
+
+  void _mostrarInterstitialAdAposAcao(VoidCallback acaoAposAnuncio) {
+    if (_interstitialAd != null) {
+      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _carregarInterstitialAd();
+          acaoAposAnuncio();
+        },
+        onAdFailedToShowFullScreenContent: (ad, error) {
+          ad.dispose();
+          _carregarInterstitialAd();
+          acaoAposAnuncio();
+        },
+      );
+      _interstitialAd!.show();
+      _interstitialAd = null;
+    } else {
+      acaoAposAnuncio();
+    }
   }
 
   Future<void> _carregarPontuacoes() async {
@@ -137,6 +181,21 @@ class _MenuTelaState extends State<MenuTela> {
     final localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(
+          _isTopBannerAdLoaded ? _topBannerAd!.size.height.toDouble() : 0,
+        ),
+        child: SafeArea(
+          bottom: false, // Aplica SafeArea apenas no topo
+          child: _isTopBannerAdLoaded
+              ? SizedBox(
+                  height: _topBannerAd!.size.height.toDouble(),
+                  width: _topBannerAd!.size.width.toDouble(),
+                  child: AdWidget(ad: _topBannerAd!),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -186,13 +245,16 @@ class _MenuTelaState extends State<MenuTela> {
           ),
         ),
       ),
-      bottomNavigationBar: _isBannerAdLoaded
-          ? SizedBox(
-              height: _bannerAd!.size.height.toDouble(),
-              width: _bannerAd!.size.width.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            )
-          : const SizedBox(height: 50),
+      bottomNavigationBar: SafeArea(
+        top: false, // Aplica SafeArea apenas no fundo
+        child: _isBottomBannerAdLoaded
+            ? SizedBox(
+                height: _bottomBannerAd!.size.height.toDouble(),
+                width: _bottomBannerAd!.size.width.toDouble(),
+                child: AdWidget(ad: _bottomBannerAd!),
+              )
+            : const SizedBox(height: 50),
+      ),
     );
   }
 
@@ -231,7 +293,10 @@ class _MenuTelaState extends State<MenuTela> {
               localizations.close,
               style: const TextStyle(color: Colors.cyan),
             ),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _mostrarInterstitialAdAposAcao(() {});
+            },
           ),
         ],
       ),
@@ -240,7 +305,9 @@ class _MenuTelaState extends State<MenuTela> {
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    _topBannerAd?.dispose();
+    _bottomBannerAd?.dispose();
+    _interstitialAd?.dispose();
     super.dispose();
   }
 }
@@ -254,15 +321,23 @@ class JogoCobrinhaTela extends StatefulWidget {
 }
 
 class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
+  // Estado do jogo
   List<Point<int>> _cobra = [];
   Point<int> _comida = const Point(0, 0);
   Direcao _direcao = Direcao.direita;
   bool _jogando = false;
   int _pontos = 0;
   int _pontosNivel = 0;
-  int _nivel = 1;
+  int _nivel = 0;
   int _vidas = 2;
   Timer? _timer;
+
+  // Contador
+  int _countdown = 3;
+  bool _isCountingDown = false;
+  Timer? _countdownTimer;
+
+  // Estilos e Cores
   Color _borderColor = Colors.cyan.withOpacity(0.7);
   final List<Color> _levelColors = [
     Colors.cyan.withOpacity(0.7),
@@ -272,12 +347,38 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     Colors.orange.withOpacity(0.7),
     Colors.pink.withOpacity(0.7),
   ];
-  BannerAd? _bannerAd;
-  bool _isBannerAdLoaded = false;
-  bool _isBannerLoading = false;
+  Color _snakeBodyColor = Colors.cyan;
+  Color _snakeHeadColor = Colors.cyanAccent;
+  final List<Color> _snakeBodyColors = [
+    Colors.cyan,
+    Colors.green,
+    Colors.blue,
+    Colors.yellow,
+    Colors.purple,
+    Colors.orange,
+  ];
+  final List<Color> _snakeHeadColors = [
+    Colors.cyanAccent,
+    Colors.lightGreenAccent,
+    Colors.lightBlueAccent,
+    Colors.yellowAccent,
+    Colors.purpleAccent,
+    Colors.orangeAccent,
+  ];
+
+  // Obstáculos
+  List<Point<int>> _obstaculos = [];
+
+  // Anúncios
+  BannerAd? _topBannerAd;
+  bool _isTopBannerAdLoaded = false;
+  BannerAd? _bottomBannerAd;
+  bool _isBottomBannerAdLoaded = false;
+  bool _areBannersLoading = false;
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
+  bool _rewardGranted = false; // Flag para controlar a recompensa
 
   @override
   void initState() {
@@ -290,9 +391,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_isBannerLoading && !_isBannerAdLoaded) {
-      _isBannerLoading = true;
-      _carregarBannerAdaptativo();
+    if (!_areBannersLoading) {
+      _areBannersLoading = true;
+      _carregarBannersAdaptativos();
     }
   }
 
@@ -304,9 +405,13 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     setState(() {
       _pontos = 0;
       _pontosNivel = 0;
-      _nivel = 1;
+      _nivel = 0;
       _vidas = 2;
       _borderColor = _levelColors[0];
+      _snakeBodyColor = _snakeBodyColors[0];
+      _snakeHeadColor = _snakeHeadColors[0];
+      _obstaculos.clear();
+
       _direcao = direcaoAleatoria;
       Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
       switch (_direcao) {
@@ -340,14 +445,14 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           break;
       }
       _gerarComida();
-      _jogando = true;
+      _jogando = false;
     });
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 300), _loopJogo);
+    _startCountdown();
   }
 
   void _loopJogo(Timer timer) {
-    if (!_jogando) return;
+    if (!_jogando || _isCountingDown) return;
     final cabeca = _cobra.last;
     Point<int> novaCabeca;
     switch (_direcao) {
@@ -368,7 +473,8 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
         novaCabeca.x >= colunas ||
         novaCabeca.y < 0 ||
         novaCabeca.y >= linhas ||
-        _cobra.contains(novaCabeca)) {
+        _cobra.contains(novaCabeca) ||
+        _obstaculos.contains(novaCabeca)) {
       _perderVida();
       return;
     }
@@ -389,19 +495,25 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     final random = Random();
     do {
       _comida = Point(random.nextInt(colunas), random.nextInt(linhas));
-    } while (_cobra.contains(_comida));
+    } while (_cobra.contains(_comida) || _obstaculos.contains(_comida));
   }
 
   void _subirNivel() {
     _nivel++;
     _pontosNivel = 0;
-    _vidas = 2;
-    setState(
-      () => _borderColor = _levelColors[(_nivel - 1) % _levelColors.length],
-    );
-    if (_cobra.length > 3) {
-      setState(() => _cobra = _cobra.sublist(_cobra.length - 3));
+    setState(() {
+      _borderColor = _levelColors[_nivel % _levelColors.length];
+      _snakeBodyColor = _snakeBodyColors[_nivel % _snakeBodyColors.length];
+      _snakeHeadColor = _snakeHeadColors[_nivel % _snakeHeadColors.length];
+      _vidas = 2;
+    });
+
+    if (_nivel >= nivelInicioObstaculos) {
+      _gerarObstaculos();
     }
+
+    if (_cobra.length > 3)
+      setState(() => _cobra = _cobra.sublist(_cobra.length - 3));
     _timer?.cancel();
     final novaVelocidade = 300 - (_nivel * 20);
     _timer = Timer.periodic(
@@ -410,47 +522,152 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     );
   }
 
+  void _gerarObstaculos() {
+    _obstaculos.clear();
+    final random = Random();
+    final int numeroDeObstaculos = _nivel - (nivelInicioObstaculos - 1);
+
+    for (int i = 0; i < numeroDeObstaculos; i++) {
+      final int largura = random.nextInt(3) + 1;
+      final int altura = random.nextInt(3) + 1;
+
+      bool obstaculoValido;
+      Point<int> inicioObstaculo;
+      List<Point<int>> novoObstaculo = [];
+
+      int tentativas = 0;
+      do {
+        obstaculoValido = true;
+        novoObstaculo.clear();
+        inicioObstaculo = Point(
+          random.nextInt(colunas - largura),
+          random.nextInt(linhas - altura),
+        );
+
+        for (int y = 0; y < altura; y++) {
+          for (int x = 0; x < largura; x++) {
+            final ponto = Point(inicioObstaculo.x + x, inicioObstaculo.y + y);
+            if (_cobra.contains(ponto)) {
+              obstaculoValido = false;
+              break;
+            }
+            novoObstaculo.add(ponto);
+          }
+          if (!obstaculoValido) break;
+        }
+        tentativas++;
+      } while (!obstaculoValido && tentativas < 20);
+
+      if (obstaculoValido) {
+        _obstaculos.addAll(novoObstaculo);
+      }
+    }
+  }
+
+  void _resetSnakePosition() {
+    final random = Random();
+
+    Point<int> cabeca;
+    Direcao direcaoAleatoria;
+    bool localSeguro;
+    int tentativas = 0;
+    List<Point<int>> corpoTemporario = [];
+
+    do {
+      localSeguro = true;
+      direcaoAleatoria = Direcao.values[random.nextInt(Direcao.values.length)];
+      cabeca = Point(
+        random.nextInt(colunas - 4) + 2,
+        random.nextInt(linhas - 4) + 2,
+      );
+
+      switch (direcaoAleatoria) {
+        case Direcao.direita:
+          corpoTemporario = [
+            Point(cabeca.x - 2, cabeca.y),
+            Point(cabeca.x - 1, cabeca.y),
+            cabeca,
+          ];
+          break;
+        case Direcao.esquerda:
+          corpoTemporario = [
+            Point(cabeca.x + 2, cabeca.y),
+            Point(cabeca.x + 1, cabeca.y),
+            cabeca,
+          ];
+          break;
+        case Direcao.baixo:
+          corpoTemporario = [
+            Point(cabeca.x, cabeca.y - 2),
+            Point(cabeca.x, cabeca.y - 1),
+            cabeca,
+          ];
+          break;
+        case Direcao.cima:
+          corpoTemporario = [
+            Point(cabeca.x, cabeca.y + 2),
+            Point(cabeca.x, cabeca.y + 1),
+            cabeca,
+          ];
+          break;
+      }
+
+      if (corpoTemporario.any((ponto) => _obstaculos.contains(ponto))) {
+        localSeguro = false;
+      }
+
+      tentativas++;
+    } while (!localSeguro && tentativas < 50);
+
+    if (localSeguro) {
+      _cobra = corpoTemporario;
+      _direcao = direcaoAleatoria;
+    } else {
+      _obstaculos.clear();
+      _direcao = Direcao.values[random.nextInt(Direcao.values.length)];
+      cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
+      switch (_direcao) {
+        case Direcao.direita:
+          _cobra = [
+            Point(cabeca.x - 2, cabeca.y),
+            Point(cabeca.x - 1, cabeca.y),
+            cabeca,
+          ];
+          break;
+        case Direcao.esquerda:
+          _cobra = [
+            Point(cabeca.x + 2, cabeca.y),
+            Point(cabeca.x + 1, cabeca.y),
+            cabeca,
+          ];
+          break;
+        case Direcao.baixo:
+          _cobra = [
+            Point(cabeca.x, cabeca.y - 2),
+            Point(cabeca.x, cabeca.y - 1),
+            cabeca,
+          ];
+          break;
+        case Direcao.cima:
+          _cobra = [
+            Point(cabeca.x, cabeca.y + 2),
+            Point(cabeca.x, cabeca.y + 1),
+            cabeca,
+          ];
+          break;
+      }
+    }
+  }
+
   void _perderVida() {
     setState(() {
       _vidas--;
-      if (_vidas < 0) {
+      if (_vidas <= 0) {
         _gameOver();
       } else {
-        final random = Random();
-        final direcoes = Direcao.values;
-        final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
-        _direcao = direcaoAleatoria;
-        Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
-        switch (_direcao) {
-          case Direcao.direita:
-            _cobra = [
-              Point(cabeca.x - 2, cabeca.y),
-              Point(cabeca.x - 1, cabeca.y),
-              cabeca,
-            ];
-            break;
-          case Direcao.esquerda:
-            _cobra = [
-              Point(cabeca.x + 2, cabeca.y),
-              Point(cabeca.x + 1, cabeca.y),
-              cabeca,
-            ];
-            break;
-          case Direcao.baixo:
-            _cobra = [
-              Point(cabeca.x, cabeca.y - 2),
-              Point(cabeca.x, cabeca.y - 1),
-              cabeca,
-            ];
-            break;
-          case Direcao.cima:
-            _cobra = [
-              Point(cabeca.x, cabeca.y + 2),
-              Point(cabeca.x, cabeca.y + 1),
-              cabeca,
-            ];
-            break;
-        }
+        _timer?.cancel();
+        _resetSnakePosition();
+        _startCountdown();
       }
     });
   }
@@ -481,7 +698,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       ? 'ca-app-pub-4241608895500197/6401236943'
       : 'ca-app-pub-4241608895500197/6482441071';
 
-  Future<void> _carregarBannerAdaptativo() async {
+  Future<void> _carregarBannersAdaptativos() async {
     final AnchoredAdaptiveBannerAdSize? size =
         await AdSize.getAnchoredAdaptiveBannerAdSize(
           Orientation.portrait,
@@ -492,21 +709,23 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
       return;
     }
 
-    _bannerAd = BannerAd(
+    _topBannerAd = BannerAd(
       adUnitId: _bannerAdUnitId,
       request: const AdRequest(),
       size: size,
       listener: BannerAdListener(
-        onAdLoaded: (ad) => setState(() {
-          _isBannerAdLoaded = true;
-          _isBannerLoading = false;
-        }),
-        onAdFailedToLoad: (ad, err) {
-          ad.dispose();
-          setState(() {
-            _isBannerLoading = false;
-          });
-        },
+        onAdLoaded: (ad) => setState(() => _isTopBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
+      ),
+    )..load();
+
+    _bottomBannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      request: const AdRequest(),
+      size: size,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) => setState(() => _isBottomBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
     )..load();
   }
@@ -540,164 +759,207 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
     );
   }
 
-  void _mostrarInterstitialAd() {
+  void _mostrarInterstitialAdAposAcao(VoidCallback acaoAposAnuncio) {
     if (_interstitialAd != null) {
       _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
         onAdDismissedFullScreenContent: (ad) {
           ad.dispose();
           _carregarInterstitialAd();
-          _mostrarScoreboard();
+          acaoAposAnuncio();
         },
         onAdFailedToShowFullScreenContent: (ad, error) {
           ad.dispose();
           _carregarInterstitialAd();
-          _mostrarScoreboard();
+          acaoAposAnuncio();
         },
       );
       _interstitialAd!.show();
       _interstitialAd = null;
     } else {
-      _mostrarScoreboard();
+      acaoAposAnuncio();
     }
   }
 
   void _mostrarRewardedAd() {
     if (_rewardedAd != null) {
+      _rewardGranted = false;
       _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
         onAdDismissedFullScreenContent: (ad) {
+          if (_rewardGranted) {
+            _resetSnakePosition();
+            _startCountdown();
+          }
           ad.dispose();
           _carregarRewardedAd();
         },
       );
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) {
-          // --- LÓGICA DE RESET CORRIGIDA ---
-          final random = Random();
-          final direcoes = Direcao.values;
-          final direcaoAleatoria = direcoes[random.nextInt(direcoes.length)];
-
           setState(() {
             _vidas = 1;
-            _jogando = true;
-            _direcao = direcaoAleatoria;
-            Point<int> cabeca = const Point(colunas ~/ 2, linhas ~/ 2);
-            switch (_direcao) {
-              case Direcao.direita:
-                _cobra = [
-                  Point(cabeca.x - 2, cabeca.y),
-                  Point(cabeca.x - 1, cabeca.y),
-                  cabeca,
-                ];
-                break;
-              case Direcao.esquerda:
-                _cobra = [
-                  Point(cabeca.x + 2, cabeca.y),
-                  Point(cabeca.x + 1, cabeca.y),
-                  cabeca,
-                ];
-                break;
-              case Direcao.baixo:
-                _cobra = [
-                  Point(cabeca.x, cabeca.y - 2),
-                  Point(cabeca.x, cabeca.y - 1),
-                  cabeca,
-                ];
-                break;
-              case Direcao.cima:
-                _cobra = [
-                  Point(cabeca.x, cabeca.y + 2),
-                  Point(cabeca.x, cabeca.y + 1),
-                  cabeca,
-                ];
-                break;
-            }
           });
-
-          // Reinicia o timer com a velocidade correspondente ao nível atual
-          _timer?.cancel();
-          final novaVelocidade = 300 - (_nivel * 20);
-          _timer = Timer.periodic(
-            Duration(milliseconds: max(50, novaVelocidade)),
-            _loopJogo,
-          );
+          _rewardGranted = true;
         },
       );
       _rewardedAd = null;
     }
   }
 
+  void _startCountdown() {
+    setState(() {
+      _isCountingDown = true;
+      _jogando = false;
+      _countdown = 3;
+    });
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_countdown > 1) {
+        setState(() => _countdown--);
+      } else {
+        timer.cancel();
+        setState(() {
+          _isCountingDown = false;
+          _jogando = true;
+        });
+        _startGameLoop();
+      }
+    });
+  }
+
+  void _startGameLoop() {
+    _timer?.cancel();
+    final novaVelocidade = 300 - (_nivel * 20);
+    _timer = Timer.periodic(
+      Duration(milliseconds: max(50, novaVelocidade)),
+      _loopJogo,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          '${localizations.points}$_pontos | ${localizations.level}$_nivel | ${localizations.lives}$_vidas',
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(
+          _isTopBannerAdLoaded ? _topBannerAd!.size.height.toDouble() : 0,
         ),
-        centerTitle: true,
+        child: SafeArea(
+          bottom: false,
+          child: _isTopBannerAdLoaded
+              ? SizedBox(
+                  height: _topBannerAd!.size.height.toDouble(),
+                  width: _topBannerAd!.size.width.toDouble(),
+                  child: AdWidget(ad: _topBannerAd!),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
-      body: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          if (_direcao != Direcao.cima && details.delta.dy > 0) {
-            _direcao = Direcao.baixo;
-          } else if (_direcao != Direcao.baixo && details.delta.dy < 0)
-            _direcao = Direcao.cima;
-        },
-        onHorizontalDragUpdate: (details) {
-          if (_direcao != Direcao.esquerda && details.delta.dx > 0) {
-            _direcao = Direcao.direita;
-          } else if (_direcao != Direcao.direita && details.delta.dx < 0)
-            _direcao = Direcao.esquerda;
-        },
-        child: Center(
-          child: Container(
-            width: colunas * tamanhoCelula,
-            height: linhas * tamanhoCelula,
-            decoration: BoxDecoration(
-              border: Border.all(color: _borderColor, width: 2.0),
-              color: const Color(0xFF161B22),
+      body: Column(
+        children: [
+          AppBar(
+            title: Text(
+              '${localizations.points}$_pontos | ${localizations.level}$_nivel | ${localizations.lives}$_vidas',
             ),
-            child: Stack(
-              children: [
-                ..._cobra.map((p) {
-                  final bool isHead = p == _cobra.last;
-                  return Positioned(
-                    left: p.x * tamanhoCelula,
-                    top: p.y * tamanhoCelula,
-                    child: Container(
-                      width: tamanhoCelula,
-                      height: tamanhoCelula,
-                      decoration: BoxDecoration(
-                        color: isHead ? Colors.cyanAccent : Colors.cyan,
-                        borderRadius: BorderRadius.circular(4),
+            centerTitle: true,
+            automaticallyImplyLeading: false,
+          ),
+          Expanded(
+            child: GestureDetector(
+              onVerticalDragUpdate: (details) {
+                if (_direcao != Direcao.cima && details.delta.dy > 0)
+                  _direcao = Direcao.baixo;
+                else if (_direcao != Direcao.baixo && details.delta.dy < 0)
+                  _direcao = Direcao.cima;
+              },
+              onHorizontalDragUpdate: (details) {
+                if (_direcao != Direcao.esquerda && details.delta.dx > 0)
+                  _direcao = Direcao.direita;
+                else if (_direcao != Direcao.direita && details.delta.dx < 0)
+                  _direcao = Direcao.esquerda;
+              },
+              child: Center(
+                child: Container(
+                  width: colunas * tamanhoCelula,
+                  height: linhas * tamanhoCelula,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _borderColor, width: 2.0),
+                    color: const Color(0xFF161B22),
+                  ),
+                  child: Stack(
+                    children: [
+                      ..._obstaculos.map(
+                        (p) => Positioned(
+                          left: p.x * tamanhoCelula,
+                          top: p.y * tamanhoCelula,
+                          child: Container(
+                            width: tamanhoCelula,
+                            height: tamanhoCelula,
+                            decoration: BoxDecoration(
+                              color: const Color.fromARGB(255, 88, 93, 99),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  );
-                }),
-                Positioned(
-                  left: _comida.x * tamanhoCelula,
-                  top: _comida.y * tamanhoCelula,
-                  child: Container(
-                    width: tamanhoCelula,
-                    height: tamanhoCelula,
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                    ),
+                      ..._cobra.map((p) {
+                        final bool isHead = p == _cobra.last;
+                        return Positioned(
+                          left: p.x * tamanhoCelula,
+                          top: p.y * tamanhoCelula,
+                          child: Container(
+                            width: tamanhoCelula,
+                            height: tamanhoCelula,
+                            decoration: BoxDecoration(
+                              color: isHead ? _snakeHeadColor : _snakeBodyColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        );
+                      }),
+                      Positioned(
+                        left: _comida.x * tamanhoCelula,
+                        top: _comida.y * tamanhoCelula,
+                        child: Container(
+                          width: tamanhoCelula,
+                          height: tamanhoCelula,
+                          decoration: const BoxDecoration(
+                            color: Colors.redAccent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      if (_isCountingDown)
+                        Center(
+                          child: Text(
+                            '$_countdown',
+                            style: const TextStyle(
+                              fontSize: 80,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(blurRadius: 10, color: Colors.black),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
-      bottomNavigationBar: _isBannerAdLoaded
-          ? SizedBox(
-              height: _bannerAd!.size.height.toDouble(),
-              width: _bannerAd!.size.width.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            )
-          : const SizedBox(height: 50),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: _isBottomBannerAdLoaded
+            ? SizedBox(
+                height: _bottomBannerAd!.size.height.toDouble(),
+                width: _bottomBannerAd!.size.width.toDouble(),
+                child: AdWidget(ad: _bottomBannerAd!),
+              )
+            : const SizedBox(height: 50),
+      ),
     );
   }
 
@@ -717,7 +979,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
-          if (_vidas <= 0 && _rewardedAdReady)
+          if (_rewardedAdReady)
             TextButton.icon(
               icon: const Icon(Icons.videocam, color: Colors.amber),
               label: Text(
@@ -732,11 +994,11 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           TextButton(
             child: Text(
               localizations.viewScoreboard,
-              style: const TextStyle(color: Colors.deepOrangeAccent),
+              style: const TextStyle(color: Colors.white),
             ),
             onPressed: () {
               Navigator.of(context).pop();
-              _mostrarInterstitialAd();
+              _mostrarScoreboard();
             },
           ),
           TextButton(
@@ -752,7 +1014,7 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
           TextButton(
             child: Text(
               localizations.exitToMenu,
-              style: const TextStyle(color: Colors.redAccent),
+              style: const TextStyle(color: Colors.cyan),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -799,22 +1061,17 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
         actions: [
           TextButton(
             child: Text(
-              localizations.backToMenu,
-              style: const TextStyle(color: Colors.white),
-            ),
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-          ),
-          TextButton(
-            child: Text(
-              localizations.playAgain,
+              localizations.close,
               style: const TextStyle(color: Colors.cyan),
             ),
             onPressed: () {
-              Navigator.of(context).pop();
-              _iniciarJogo();
+              Navigator.of(context).pop(); // Fecha o placar
+              _mostrarInterstitialAdAposAcao(() {
+                // Se o jogo não estiver ativo, significa que viemos do menu de game over.
+                if (!_jogando) {
+                  _mostrarDialogoGameOver();
+                }
+              });
             },
           ),
         ],
@@ -825,7 +1082,9 @@ class _JogoCobrinhaTelaState extends State<JogoCobrinhaTela> {
   @override
   void dispose() {
     _timer?.cancel();
-    _bannerAd?.dispose();
+    _countdownTimer?.cancel();
+    _topBannerAd?.dispose();
+    _bottomBannerAd?.dispose();
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
     super.dispose();
